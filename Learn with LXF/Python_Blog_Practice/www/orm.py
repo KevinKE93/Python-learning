@@ -5,37 +5,43 @@
 import asyncio, aiomysql, logging
 
 
+# print SQL
 def log(sql, args=()):
     logging.info('SQL: %s' % sql)
 
 
+# Create global DB connection pool
 @asyncio.coroutine
 def create_mysql_pool(loop, **kwargs):
     logging.info('Create MySQL Connection pool…')
     global __pool
+    # get a connection from aiomysql.create
     __pool = yield from aiomysql.create_pool(
-        # set necessary **kwargs for aiomysql.create_pool
+        # set necessary **kwargs for aiomysql.create_pool. Default value
         maxsize=kwargs.get('maxsize', 10),
         minsize=kwargs.get('minsize', 1),
-        loop=loop,
         # set **kwargs for aiomysql.create_pool from create_mysql_pool's **kwargs
+        # Default is local DB
         host=kwargs.get('host', 'localhost'),
         port=kwargs.get('port', 3306),
         user=kwargs['user'],
         db=kwargs['db'],
         charset=kwargs.get('charset', 'utf-8'),
-        autocommit=kwargs.get('autocommit', True)
+        autocommit=kwargs.get('autocommit', True),
+        # accept a loop object
+        loop=loop
     )
 
-
+# mysql_select for SELECT
 @asyncio.coroutine
 def mysql_select(sql, args, size=None):
     log(sql, args)
     global __pool
-    # get connection args
+    # get connection from global var
     with (yield from __pool) as connection:
+        # A cursor which returns results as a dictionary
         cursor = yield from connection.cursor(aiomysql.DictCursor)
-        yield from cursor.execute(sql.replace('s', '%s'), args or ())
+        yield from cursor.execute(sql.replace('?', '%s'), args or ())
         if size:
             rs = yield from cursor.fetchmany(size)
         else:
@@ -65,6 +71,7 @@ def create_args_string(num):
     return ','.join(l)
 
 
+# Create Field from object
 class Field(object):
     def __init__(self, name, column_type, primary_key, defualt):
         self.name = name
@@ -72,8 +79,23 @@ class Field(object):
         self.primary_key = primary_key
         self.defualt = defualt
 
+
+# 笔记：self.__class__.__name__的属性来自于type类；object类中没有该属性。而Field类是从object类继承的，并没有继承type。
+# 同时，此处的代码写为 self.name 也运行正确，看起来（写法跟其他部分保持一致）。
+# 参考解释 https://www.zhihu.com/question/38791962?sort=created
+# type是一切类型的顶端，Object是一切对象的顶端。Object是一个type类型、是type的父类；type是从object派生的类，是一个type类型。
+# type 和 object 的类型
+# >>> type.__class__
+# <class 'type'>
+# >>> object.__class__
+# <class 'type'>
+# type 和 object 的父类
+# >>> type.__bases__
+# ( <class 'object'>, )
+# >>> object.__bases__
+# ()
     def __str__(self):
-        return '<%s, %s:%s>' % (self.__class__.name, self.column_type, self.name)
+        return '<%s, %s:%s>' % (self.__class__.__name__, self.column_type, self.name)
 
 
 class StringField(Field):
@@ -113,7 +135,7 @@ class ModelMetaclass(type):
         mappings = dict()
         fields = []
         primarykey = None
-        for k, v in attrs.item():
+        for k, v in attrs.items():
             if isinstance(v, Field):
                 logging.info(' Found mapping:%s===>%s' % (k, v))
                 mappings[k] = v
@@ -220,3 +242,16 @@ class Model(dict, metaclass=ModelMetaclass):
         rows = yield from mysql_execute(self.__delete__, args)
         if rows != 1:
             logging.warning('Failed to remove by primary key: affected %s rows' % rows)
+
+
+if __name__ == '__main__':
+    class User(Model):
+        id = IntegerField('id', primary_key=True,)
+        name = StringField('username')
+        email = StringField('email')
+        password = StringField('password')
+
+    u = User(id=123, name='kevin', email='kevinke@outlook.com', password='password')
+    print(u)
+    u.save
+    print(u)
