@@ -137,9 +137,9 @@ class ModelMetaclass(type):
         # build default SQL for SELECT, INSERT, UPDATE, DELETE:
         attrs['__select__'] = 'SELECT `%s`,%s from `%s` ' % (primarykey, ','.join(escaped_fields), tablename)
         attrs['__insert__'] = 'INSERT into `%s` (%s, `%s`) VALUES (%s)' % (
-        tablename, ','.join(escaped_fields), primarykey, create_args_string(len(escaped_fields) + 1))
+            tablename, ','.join(escaped_fields), primarykey, create_args_string(len(escaped_fields) + 1))
         attrs['__update__'] = 'UPDATE `%s` set %s WHERE `%s`=?' % (
-        tablename, ','.join(map(lambda f: '`%s=?' % (mappings.get(f).name or f), fields)), primarykey)
+            tablename, ','.join(map(lambda f: '`%s=?' % (mappings.get(f).name or f), fields)), primarykey)
         attrs['__delete__'] = 'DELETE from `%s` WHERE `%s`=?' % (tablename, primarykey)
         return type.__new__(cls, name, bases, attrs)
 
@@ -208,7 +208,7 @@ class Model(dict, metaclass=ModelMetaclass):
 
     @asyncio.coroutine
     def save(self):
-        args = list(map(self.getvalueordefault(),self.__fields__))
+        args = list(map(self.getvalueordefault(), self.__fields__))
         args.append(self.getvalueordefault(self.__primary_key__))
         rows = yield from mysql_execute(self.__insert__, args)
         if rows != 1:
